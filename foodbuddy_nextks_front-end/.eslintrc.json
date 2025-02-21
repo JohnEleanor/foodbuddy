@@ -1,0 +1,8 @@
+{
+  "extends": ["next/core-web-vitals", "plugin:@typescript-eslint/recommended"],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "off", // ปิดการแจ้งเตือนการใช้ any
+    "react/react-in-jsx-scope": "off",          // ตัวอย่างการปิดกฎอื่น
+    "no-console": "warn"                        // เปลี่ยนการแจ้งเตือนสำหรับ console.log เป็น warning
+  }
+}

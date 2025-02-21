@@ -1,0 +1,15 @@
+env
+.env 
+images/*.jpg
+images/*.png
+DIALOG_KEY.json
+datasheet.pdf
+food_data.json
+
+*__pycache__/
+__pycache__/*.pyc
+*.pyc
+*.pyo
+*.pyd
+
+app/*.env
