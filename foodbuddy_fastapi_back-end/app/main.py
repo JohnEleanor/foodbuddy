@@ -47,19 +47,19 @@ app.mount("/images", StaticFiles(directory="images"), name="images")
 
 # !----------------------------ORIGIN-------------------------------------- #
 
-origins = [
-    "http://localhost:3000",
-    "htpp://localhost:8000"
-]
+# origins = [
+#     "http://localhost:3000",
+#     "htpp://localhost:8000"
+# ]
 
-# Add CORSMiddleware to the app
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,  # allows requests from these origins
-    allow_credentials=True,
-    allow_methods=["*"],  # allows all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],  # allows all headers
-)
+# # Add CORSMiddleware to the app
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=origins,  # allows requests from these origins
+#     allow_credentials=True,
+#     allow_methods=["*"],  # allows all HTTP methods (GET, POST, etc.)
+#     allow_headers=["*"],  # allows all headers
+# )
 
 
 @app.post("/api/predict")
@@ -114,7 +114,7 @@ async def callback(request: Request, x_line_signature: str = Header(None)):
         # print(body_str)
         # print(x_line_signature)
         handler.handle(body_str, x_line_signature)
-        print(body_str)
+        # print(body_str)
         print("Received frome LINE")
     except InvalidSignatureError:
         print("Invalid signature. Please check your channel access token/channel secret.")

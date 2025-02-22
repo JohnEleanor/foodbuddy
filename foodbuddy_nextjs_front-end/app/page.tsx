@@ -4,7 +4,7 @@
 import Image from "next/image";
 import liff from "@line/liff";
 import { useState, useEffect } from "react";
-import Link from "next/link";
+// import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 // ? Components
@@ -33,50 +33,9 @@ try {
     if (!liff.isLoggedIn()) {
       liff.login();
     } else {
-      const profile = await liff.getProfile();
-      console.log("User ID:", profile.userId);
-      console.log("Display Name:", profile.displayName);
-      console.log("Status Message:", profile.statusMessage);
-      console.log("Picture URL:", profile.pictureUrl);
-
-      fetch(`http://localhost:8000/user/lineliff/{}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(profile), // data you want to send
-      });
-
-      // ตรวจสอบสิทธิ์ที่ผู้ใช้ให้
-      const permission = await liff.permission.query("profile");
-      if (permission.state === "granted") {
-        // ดำเนินการกับข้อมูลโปรไฟล์ที่ได้รับ
-        // const params = new URLSearchParams();
-        // params.append("grant_type", "authorization_code");
-        // params.append("code", authorizationCode);
-        // params.append("redirect_uri", redirectUri);
-        // params.append("client_id", channelId);
-        // params.append("client_secret", channelSecret);
-
-        // const response = await fetch("https://api.line.me/oauth2/v2.1/token", {
-        //   method: "POST",
-        //   headers: {
-        //     "Content-Type": "application/x-www-form-urlencoded",
-        //   },
-        //   body: params.toString(),
-        // });
-
-        // if (!response.ok) {
-        //   throw new Error(`Server error: ${response.status}`);
-        // }
-
-        // const data = await response.json();
-        // const accessToken = data.access_token;
-        // const idToken = data.id_token;
-        // const refreshToken = data.refresh_token;
-      } else {
-        console.error("User has not granted profile permission");
-      }
+      const decode = liff.getDecodedIDToken();
+      const encodedData = JSON.stringify(decode);
+      console.log(encodedData);
     }
   } catch (error) {
     console.error("Failed to initialize LIFF:", error);
@@ -96,12 +55,13 @@ export default function Home() {
       } else {
         const userProfile = await liff.getProfile(); // รอจนกว่าจะได้ข้อมูล
         const encodedData = JSON.stringify(userProfile);
-
+        console.log(userProfile)
         console.log("LIFF initialized");
         localStorage.setItem("Jay:userData", encodedData);
         const _userData = localStorage.getItem("Jay:userData");
         if (_userData) {
           const userData = JSON.parse(_userData);
+          
           const result = await fetch(`/api/users/${userData.userId}`);
           const response = await result.json();
           // console.log(response)

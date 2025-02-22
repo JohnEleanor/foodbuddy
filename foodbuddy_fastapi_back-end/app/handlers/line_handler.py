@@ -58,9 +58,9 @@ def handle_image(event: ImageMessageContent):
                     )
                 else: 
                     nutrition_json = predict_result[0]['nutration']
+                    # print(predict_result)
                     if (nutrition_json): 
                         nutrition_data = json.loads(nutrition_json)  
-                        # print(nutrition_data)
                         print(predict_result[0]['name'])
                         user_data["food_name"] = predict_result[0]['name']
                         user_data["food_type"] = predict_result[0]['food_type']
@@ -70,14 +70,18 @@ def handle_image(event: ImageMessageContent):
                         line_bot_api.reply_message(
                         reply_message_request=ReplyMessageRequest(
                                 replyToken=event.reply_token,
-                                messages=[
-                                    bubble
-                                    # TextMessage(quick_reply=save_image_quick_reply())
-                                ]
+                                messages=[bubble]
                             )
                         )
                     else:
-                        print("Nutrition data not found")
+                        line_bot_api.reply_message(
+                        reply_message_request=ReplyMessageRequest(
+                                replyToken=event.reply_token,
+                                messages=[
+                                    TextMessage(text=f"ขอโทษด้วย ยังไม่มีข้อมูลโภชนาการ ค่ะ เเต่รูปภาพนี้คืออาหาร : {predict_result[0]['name']}")
+                                ]
+                            )
+                        )
                    
                      
             remove_image(file_name)
@@ -88,14 +92,12 @@ def handle_message(event: MessageEvent):
     try:
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
-            print(event)
             user_id = event.source.user_id  # ดึง user_id
             user_corrections.setdefault(user_id, {"status": None, "image_receive": False, "image_path": None, "nutrition" : None, "food_name" : None})  # ตั้งค่าพื้นฐานหากไม่มีข้อมูล
 
             user_data = user_corrections[user_id]  # ดึงข้อมูลของผู้ใช้
             message_text = event.message.text  # ข้อความที่ได้รับจากผู้ใช้
 
-            # print(user_corrections)
             
             if message_text == "เเก้ไขเมนู":
                 # reply_text = "โปรดถ่ายรูปอาหารก่อนค่ะ!"
@@ -112,28 +114,19 @@ def handle_message(event: MessageEvent):
                     reply_text = "ขอบคุณค่ะ รูปภาพของคุณได้ถูกบันทึกเรียบร้อยแล้ว!"
                     
                     lodingAnimation(user_id)
-                    
-                    # print("from",user_id,"user_data : ",user_data)
-                    # print("nutrition : ",user_data.get("nutrition"))
-                    # print("calories : ",user_data.get("nutrition").get("calories"))
-                    # print("carbs : ",user_data.get("nutrition").get("carbs"))
-                    # print("fat : ",user_data.get("nutrition").get("fat"))
-                    # print("protein : ",user_data.get("nutrition").get("protein"))
-                    # print("food_name : ",user_data.get("food_name"))
-                    # print("food_type : ",user_data.get("food_type"))
+               
 
 
                     print("API CALL SAVE DATA TO DATABASE ")
-                    """
-                        @params user_id ไลน์ไอดี
-                        @params calories แคลอรี่
-                        @params carbs คาร์โบไฮเดรต
-                        @params fat ไขมัน
-                        @params protein โปรตีน
-                        @params food_name ชื่ออาหาร
-
-
-                    """
+# ---------------------------------------------------------------------------- #
+#                                     param                                    #
+# * @param user_id ไลน์ไอดี
+# * @param calories แคลอรี่
+# * @param carbs คาร์โบไฮเดรต
+# * @param fat ไขมัน
+# * @param protein โปรตีน
+# * @param food_name ชื่ออาหาร
+# ---------------------------------------------------------------------------- #
                     data = {
                         "user_lineId" : user_id,
                         "calories" : user_data.get("nutrition").get("calories"),
@@ -143,9 +136,7 @@ def handle_message(event: MessageEvent):
                         "food_name" : user_data.get("food_name"),
                         "food_type" : user_data.get("food_type")   
                     }
-                    print(data)
                     result = save_eat_history(data) # จากไฟล์ service/user_data.py
-                    print(result)
                     if (result.get("status") == "success"):
                         print("Save eat history successfully")
                         line_bot_api.reply_message(
@@ -159,11 +150,7 @@ def handle_message(event: MessageEvent):
                     else:
                         print("Insert data failed")
                         return
-
-                    
-                    
-                    
-
+  
                 else:
                     reply_text = "โปรดส่งรูปอาหารก่อนค่ะ! 🍝"
 

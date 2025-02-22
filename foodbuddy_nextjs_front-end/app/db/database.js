@@ -11,11 +11,10 @@ async function connectToDatabase() {
       port: process.env.NEXT_PUBLIC_DB_PORT,
     });
 
-    // Test the connection
-    // console.log('Connected to the database successfully!');
+    // console.log(JSON.parse(connection));
     return connection;
   } catch (error) {
-    console.error('Failed to connect to the database:', error.message);
+    console.error('Failed to connect to the database:');
     throw error; // Rethrow the error for handling in calling functions
   }
 }

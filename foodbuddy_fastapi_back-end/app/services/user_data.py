@@ -56,6 +56,7 @@ import requests
 #         connection.close()
 
 def save_eat_history(data):
+    print(data)
     try:
         # แปลงข้อมูลให้ตรงกับประเภทที่ต้องการ
         calories = int(data["calories"]) if isinstance(data["calories"], (int, float)) else None
@@ -82,7 +83,7 @@ def save_eat_history(data):
         }
 
         # ส่งข้อมูลไปยัง API
-        response = requests.post("https://web-foodbuddy.vercel.app/api", json=payload)
+        response = requests.post("http://localhost:3000/api", json=payload)
         
         # ตรวจสอบคำตอบจาก API
         
