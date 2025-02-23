@@ -57,6 +57,7 @@ def save_eat_history(data):
     except Exception as e:
         print("Error:", str(e))
         return {"error": "Failed to save eat history", "details": str(e)}
+    
 # ---------------------------------------------------------------------------- #
 
 
@@ -103,8 +104,30 @@ def incorrect_predict(data):
         print(f"Error: {e}")
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
     
+    
    
 
     return {"status": "success", "message": "Data saved successfully"}
 
+# ---------------------------------------------------------------------------- #
+
+
+# ---------------------------------------------------------------------------- #
+#!                            เก็บข้อมูลการเเจ้งปัญหา                           #
+# ---------------------------------------------------------------------------- #
+def user_report(user_id , report_message):
+    connection = connect_db()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(f"""
+                INSERT INTO user_report (user_id, report_message)
+                VALUES (%s, %s);
+            """, (user_id, report_message))
+            connection.commit()
+            close_db(connection)
+            return {"status": "success", "message": "Data saved successfully"}
+    except Exception as e:
+        print(f"Error: {e}")
+        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+    
 # ---------------------------------------------------------------------------- #

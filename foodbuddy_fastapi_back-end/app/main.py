@@ -27,8 +27,6 @@ import shutil
 
 
 
-
-
 def remove_pycache(directory="."):
     for root, dirs, files in os.walk(directory):
         if "__pycache__" in dirs:
@@ -44,22 +42,6 @@ load_dotenv()
 app = FastAPI()
 app.mount("/images", StaticFiles(directory="images"), name="images")
 
-
-# !----------------------------ORIGIN-------------------------------------- #
-
-# origins = [
-#     "http://localhost:3000",
-#     "htpp://localhost:8000"
-# ]
-
-# # Add CORSMiddleware to the app
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=origins,  # allows requests from these origins
-#     allow_credentials=True,
-#     allow_methods=["*"],  # allows all HTTP methods (GET, POST, etc.)
-#     allow_headers=["*"],  # allows all headers
-# )
 
 
 @app.post("/api/predict")
@@ -88,19 +70,7 @@ async def upload_image(image: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(status_code=500, content={"message": f"Upload failed: {str(e)}"})
 
-# ----- dialogflow webhook --------------------------------
-# @app.post("/webhook")
-# async def webhook(request: Request):
-#     # body = await request.body()
-#     data = await request.body()
-#     # print(json.loads(data))
-#     data = json.loads(data)
 
-#     print(data["queryResult"]["queryText"])
-
-#     print(data["originalDetectIntentRequest"])
-        
-#     return {"message": "Hello"} 
 
 # ----- line webhook --------------------------------
 @app.post("/api/callback")

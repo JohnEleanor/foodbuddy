@@ -3,6 +3,7 @@ from linebot.v3.messaging import (
     ApiClient, Configuration, MessagingApi, MessagingApiBlob, ReplyMessageRequest, TextMessage,
     QuickReply, QuickReplyItem, MessageAction, CameraAction, URIAction
 )
+from linebot.v3.messaging import FlexMessage, FlexContainer
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent, FollowEvent
 from linebot.v3.messaging.models.show_loading_animation_request import ShowLoadingAnimationRequest
 
@@ -12,8 +13,8 @@ from dotenv import load_dotenv
 
 # Import ฟังก์ชันช่วยเหลือ
 from services.image_service import predict_image
-from services.user_data import incorrect_predict, save_eat_history
-from utils.create_flex import create_flex_bubble
+from services.user_data import incorrect_predict, save_eat_history, user_report
+from utils.create_flex import create_flex_bubble, goto_history, goto_settingTarget
 from utils.file_utils import save_image, remove_image
 
 # โหลดค่า ENV
@@ -32,7 +33,8 @@ def initialize_user_data(user_id):
     """ ตั้งค่าข้อมูลเริ่มต้นของผู้ใช้ """
     user_corrections.setdefault(user_id, {
         "status": None, "image_receive": False, "image_path": None,
-        "nutrition": None, "food_name": None, "food_type": None
+        "nutrition": None, "food_name": None, "food_type": None, 
+        "report": False, "report_message": None
     })
     return user_corrections[user_id]
 
@@ -57,6 +59,9 @@ def start_loading_animation(user_id):
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chat_id=user_id, loadingSeconds=10))
+
+# def goto_settingTarget():
+#     return URIAction(label="ตั้งเป้าหมายสุขภาพ", uri="https://web-foodbuddy.vercel.app/dashboard/setting")
 
 
 @handler.add(MessageEvent, message=ImageMessageContent)
@@ -99,13 +104,62 @@ def handle_message(event: MessageEvent):
         user_data = initialize_user_data(user_id)
         message_text = event.message.text
 
+        start_loading_animation(user_id)
+
         if message_text in ["เเก้ไขเมนู", "แก้ไขเมนู"]:
             reply_text = "โปรดป้อนชื่อเมนูที่ถูกต้องค่ะ!" if user_data["image_receive"] else "โปรดส่งรูปอาหารก่อนค่ะ!"
             user_data["status"] = "edit" if user_data["image_receive"] else None
+        elif message_text == "วิธีใช้งาน":
+            reply_text = """🔹 การใช้งาน LINE Chat Bot
+✅ 1. วิธีใช้งานเบื้องต้น
+    🔹 ส่งรูปภาพอาหาร → ระบบจะวิเคราะห์และคำนวณแคลอรี่
+    🔹 รับผลลัพธ์กลับจากบอท → แจ้งข้อมูลโภชนาการ
+    🔹 กดปุ่ม "บันทึกข้อมูล" → บันทึกข้อมูลลงฐานข้อมูล
+    🔹 เข้าเว็บไซต์ → ดูประวัติการกิน สถิติแคลอรี่ และการวิเคราะห์สารอาหาร
+✅ 2.หน้าเว็บแสดงผล (Dashboard)
+    🔹 กราฟแสดงปริมาณสารอาหารที่ได้รับ → เปรียบเทียบกับเป้าหมาย
+    🔹 ตารางแสดงอาหารที่กินแต่ละวัน
+    🔹 แจ้งเตือนหากกินเกิน หรือขาดสารอาหาร
+    🔹 รองรับการเชื่อมต่อกับ LINE เพื่อดึงข้อมูลแบบ Real-time
+            """
+        elif message_text in ["เเจ้งปัญหา", "แจ้งปัญหา"]:
+            reply_text = "โปรดระบุปัญหาที่พบให้หน่อยค่ะ!"
+            user_data["report"] = True
+            user_data["report_message"] = None
+        elif message_text in ["ดูประวัติการกิน", "ดูประวัติ"]:
+           
+            reply_text = "วิธีการดูประวัติการกินของคุณค่ะ!"
+
+            flex_contents = goto_history()
+            flex_message = FlexMessage(alt_text="ดูประวัติการกินของคุณ", contents=FlexContainer.from_dict(flex_contents))
+
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    replyToken=event.reply_token,
+                    messages=[flex_message]
+                )
+            )
+            return
+
+        elif message_text in ["ตั้งเป้าหมาย", "เป้าหมาย", "ตั้งเป้าหมายสุขภาพ"]:
+           
+            
+            reply_text = "วิธีการตั้งเป้าหมายสุขภาพของคุณ"
+
+            flex_contents = goto_settingTarget()
+            flex_message = FlexMessage(alt_text="ดูตั้งเป้าหมายของคุณ", contents=FlexContainer.from_dict(flex_contents))
+
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    replyToken=event.reply_token,
+                    messages=[flex_message]
+                )
+            )
+            return
 
         elif message_text == "บันทึก":
             if user_data["image_receive"]:
-                start_loading_animation(user_id)
+                
                 save_result = save_eat_history({
                     "user_lineId": user_id,
                     "calories": user_data["nutrition"].get("calories"),
@@ -122,6 +176,24 @@ def handle_message(event: MessageEvent):
                 return
             else:
                 reply_text = "โปรดส่งรูปอาหารก่อนค่ะ!"
+
+        elif user_data["report"] == True:  
+            user_data["report_message"] = message_text
+            reply_text = "ขอบคุณสำหรับข้อเสนอแนะค่ะ! ทางเราจะนำไปพัฒนาต่อไปค่ะ!"
+
+            user_report(user_id, user_data["report_message"])
+            # ---------------------------------------------------------------------------- #
+            # !                       เพิ่มข้อมูลปัญหาไปที่ Database                             #
+            # ---------------------------------------------------------------------------- #
+            #               @param user_id : ไลน์ไอดี                                        #
+            #               @param report_message : ข้อความที่รับมาจากผู้ใช้                      #
+            # ---------------------------------------------------------------------------- #
+            # ---------------------------------------------------------------------------- #
+
+            
+            user_data["report"] = False
+            user_data["report_message"] = None
+            
 
         elif user_data["status"] == "edit" and user_data["image_receive"]:
             incorrect_predict({
