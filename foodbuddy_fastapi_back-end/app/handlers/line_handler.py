@@ -1,238 +1,149 @@
 from linebot.v3 import WebhookHandler
-from linebot.v3.messaging import ApiClient, Configuration, MessagingApi, MessagingApiBlob, ReplyMessageRequest, TextMessage,  FlexBubble, FlexImage, FlexBox, FlexText, FlexIcon, FlexButton, URIAction,  QuickReply,QuickReplyItem, MessageAction, CameraAction
+from linebot.v3.messaging import (
+    ApiClient, Configuration, MessagingApi, MessagingApiBlob, ReplyMessageRequest, TextMessage,
+    QuickReply, QuickReplyItem, MessageAction, CameraAction, URIAction
+)
 from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent, FollowEvent
 from linebot.v3.messaging.models.show_loading_animation_request import ShowLoadingAnimationRequest
+
+import os
+import json
+from dotenv import load_dotenv
+
+# Import ฟังก์ชันช่วยเหลือ
 from services.image_service import predict_image
+from services.user_data import incorrect_predict, save_eat_history
 from utils.create_flex import create_flex_bubble
 from utils.file_utils import save_image, remove_image
-import os
-from dotenv import load_dotenv
-import json
 
+# โหลดค่า ENV
 load_dotenv()
 
-
-# -----
-from services.user_data import save_eat_history
-
+# ตั้งค่าการเชื่อมต่อ
 get_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 handler = WebhookHandler(os.getenv('LINE_CHANNEL_SECRET'))
 configuration = Configuration(access_token=get_access_token)
 
-
+# เก็บข้อมูลผู้ใช้ชั่วคราว
 user_corrections = {}
 
 
+def initialize_user_data(user_id):
+    """ ตั้งค่าข้อมูลเริ่มต้นของผู้ใช้ """
+    user_corrections.setdefault(user_id, {
+        "status": None, "image_receive": False, "image_path": None,
+        "nutrition": None, "food_name": None, "food_type": None
+    })
+    return user_corrections[user_id]
+
+
+def send_reply(line_bot_api, reply_token, text, quick_reply=None):
+    """ ส่งข้อความตอบกลับไปยังผู้ใช้ """
+    message = TextMessage(text=text, quick_reply=quick_reply) if quick_reply else TextMessage(text=text)
+    line_bot_api.reply_message(ReplyMessageRequest(replyToken=reply_token, messages=[message]))
+
+
+def create_quick_reply():
+    """ สร้าง Quick Reply เมนูให้ผู้ใช้เลือก """
+    return QuickReply(items=[
+        QuickReplyItem(action=CameraAction(label="ถ่ายรูปอาหาร")),
+        QuickReplyItem(action=URIAction(label="ดูประวัติการกิน", uri="https://web-foodbuddy.vercel.app/")),
+        QuickReplyItem(action=URIAction(label="ตั้งเป้าหมายสุขภาพ", uri="https://web-foodbuddy.vercel.app/"))
+    ])
+
+
+def start_loading_animation(user_id):
+    """ แสดงแอนิเมชันโหลดให้ผู้ใช้เห็น """
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api.show_loading_animation(ShowLoadingAnimationRequest(chat_id=user_id, loadingSeconds=10))
+
 
 @handler.add(MessageEvent, message=ImageMessageContent)
-def handle_image(event: ImageMessageContent):
+def handle_image(event: MessageEvent):
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         line_bot_blob_api = MessagingApiBlob(api_client)
-        line_bot_api.show_loading_animation(
-            ShowLoadingAnimationRequest(
-                chat_id=event.source.user_id,
-                loadingSeconds=10
-            )
-        )
-        user_id = event.source.user_id  # ดึง user_id มาเก็บไว้ใช้
-        user_corrections.setdefault(user_id, {"status": None, "image_receive": False, "image_path": None, "nutrition" : None, "food_name" : None})  # ตั้งค่าพื้นฐานหากไม่มีข้อมูล
-        user_data = user_corrections[user_id]  # ดึงข้อมูลของผู้ใช้
-        
-        
+        user_id = event.source.user_id
+        user_data = initialize_user_data(user_id)
+
         file_name = save_image(event.message.id, line_bot_blob_api)
         if file_name:
             predict_result = predict_image(file_name)
-            
             image_url = f"{os.getenv('API_URL')}/images/{event.message.id}.jpg"
-            
- 
 
-            for item in predict_result:
-                if (item["name"] == "ไม่สามารถระบุได้"):
-                    line_bot_api.reply_message(
-                    reply_message_request=ReplyMessageRequest(
-                            replyToken=event.reply_token,
-                            messages=[TextMessage(text="ขอโทษด้วย ฉันไม่สามารถเข้าใจรูปภาพอาหารได้ คะ")]
-                        )
-                    )
-                else: 
-                    nutrition_json = predict_result[0]['nutration']
-                    # print(predict_result)
-                    if (nutrition_json): 
-                        nutrition_data = json.loads(nutrition_json)  
-                        print(predict_result[0]['name'])
-                        user_data["food_name"] = predict_result[0]['name']
-                        user_data["food_type"] = predict_result[0]['food_type']
-                        user_data["nutrition"] = nutrition_data
-                        user_data["image_receive"] = True
-                        bubble = create_flex_bubble(image_url, predict_result)
-                        line_bot_api.reply_message(
-                        reply_message_request=ReplyMessageRequest(
-                                replyToken=event.reply_token,
-                                messages=[bubble]
-                            )
-                        )
-                    else:
-                        line_bot_api.reply_message(
-                        reply_message_request=ReplyMessageRequest(
-                                replyToken=event.reply_token,
-                                messages=[
-                                    TextMessage(text=f"ขอโทษด้วย ยังไม่มีข้อมูลโภชนาการ ค่ะ เเต่รูปภาพนี้คืออาหาร : {predict_result[0]['name']}")
-                                ]
-                            )
-                        )
-                   
-                     
-            remove_image(file_name)
+            if predict_result[0]["name"] == "ไม่สามารถระบุได้":
+                send_reply(line_bot_api, event.reply_token, "ขอโทษค่ะ ฉันไม่สามารถเข้าใจรูปภาพนี้ได้")
+            else:
+                nutrition_json = predict_result[0].get('nutration')
+                if nutrition_json:
+                    user_data.update({
+                        "food_name": predict_result[0]['name'],
+                        "food_type": predict_result[0]['food_type'],
+                        "nutrition": json.loads(nutrition_json),
+                        "image_receive": True,
+                        "image_path": file_name
+                    })
+                    bubble = create_flex_bubble(image_url, predict_result)
+                    line_bot_api.reply_message(ReplyMessageRequest(replyToken=event.reply_token, messages=[bubble]))
+                else:
+                    send_reply(line_bot_api, event.reply_token, f"ไม่มีข้อมูลโภชนาการสำหรับ {predict_result[0]['name']}")
+                    user_data.update({"status": "wrong", "image_receive": True, "image_path": file_name})
 
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event: MessageEvent):
-    try:
-        with ApiClient(configuration) as api_client:
-            line_bot_api = MessagingApi(api_client)
-            user_id = event.source.user_id  # ดึง user_id
-            user_corrections.setdefault(user_id, {"status": None, "image_receive": False, "image_path": None, "nutrition" : None, "food_name" : None})  # ตั้งค่าพื้นฐานหากไม่มีข้อมูล
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        user_id = event.source.user_id
+        user_data = initialize_user_data(user_id)
+        message_text = event.message.text
 
-            user_data = user_corrections[user_id]  # ดึงข้อมูลของผู้ใช้
-            message_text = event.message.text  # ข้อความที่ได้รับจากผู้ใช้
+        if message_text in ["เเก้ไขเมนู", "แก้ไขเมนู"]:
+            reply_text = "โปรดป้อนชื่อเมนูที่ถูกต้องค่ะ!" if user_data["image_receive"] else "โปรดส่งรูปอาหารก่อนค่ะ!"
+            user_data["status"] = "edit" if user_data["image_receive"] else None
 
-            
-            if message_text == "เเก้ไขเมนู":
-                # reply_text = "โปรดถ่ายรูปอาหารก่อนค่ะ!"
-                if user_data["image_receive"]:
-                    user_data["status"] = "edit"
-                    reply_text = "โปรดป้อนชื่อเมนูที่ถูกต้องหนูหน่อยค่ะ!"
-                    print("Edit menu")
-                else:
-                    reply_text = "โปรดส่งรูปอาหารก่อนค่ะ! 🍝"
-            
-            elif message_text == "บันทึก":
-                if user_data["image_receive"]:
-                    user_data["status"] = "correct"
-                    reply_text = "ขอบคุณค่ะ รูปภาพของคุณได้ถูกบันทึกเรียบร้อยแล้ว!"
-                    
-                    lodingAnimation(user_id)
-               
-
-
-                    print("API CALL SAVE DATA TO DATABASE ")
-# ---------------------------------------------------------------------------- #
-#                                     param                                    #
-# * @param user_id ไลน์ไอดี
-# * @param calories แคลอรี่
-# * @param carbs คาร์โบไฮเดรต
-# * @param fat ไขมัน
-# * @param protein โปรตีน
-# * @param food_name ชื่ออาหาร
-# ---------------------------------------------------------------------------- #
-                    data = {
-                        "user_lineId" : user_id,
-                        "calories" : user_data.get("nutrition").get("calories"),
-                        "carbs" : user_data.get("nutrition").get("carbs"),
-                        "fat" : user_data.get("nutrition").get("fat"),
-                        "protein" : user_data.get("nutrition").get("protein"),
-                        "food_name" : user_data.get("food_name"),
-                        "food_type" : user_data.get("food_type")   
-                    }
-                    result = save_eat_history(data) # จากไฟล์ service/user_data.py
-                    if (result.get("status") == "success"):
-                        print("Save eat history successfully")
-                        line_bot_api.reply_message(
-                            reply_message_request=ReplyMessageRequest(
-                                replyToken=event.reply_token,
-                                messages=[TextMessage(text=reply_text, quick_reply=create_quick_reply())]
-                            )
-                        )
-                        clear_user_correction(user_id)
-                        return
-                    else:
-                        print("Insert data failed")
-                        return
-  
-                else:
-                    reply_text = "โปรดส่งรูปอาหารก่อนค่ะ! 🍝"
-
-            elif user_data["status"] == "edit" and user_data["image_receive"]:
-                reply_text = f"เราจะทำการเรียนรู้รูปภาพนี้ใหม่เป็น '{message_text}' นะคะ 🙏 ขอบคุณคะ"
-                clear_user_correction(user_id)
-                print(f"Learning new menu: {message_text}")
-
-
+        elif message_text == "บันทึก":
+            if user_data["image_receive"]:
+                start_loading_animation(user_id)
+                save_result = save_eat_history({
+                    "user_lineId": user_id,
+                    "calories": user_data["nutrition"].get("calories"),
+                    "carbs": user_data["nutrition"].get("carbs"),
+                    "fat": user_data["nutrition"].get("fat"),
+                    "protein": user_data["nutrition"].get("protein"),
+                    "food_name": user_data["food_name"],
+                    "food_type": user_data["food_type"]
+                })
+                if save_result.get("status") == "success":
+                    remove_image(user_data["image_path"])
+                    send_reply(line_bot_api, event.reply_token, "บันทึกเรียบร้อย!", create_quick_reply())
+                    user_corrections.pop(user_id, None)  # ล้างข้อมูลผู้ใช้
+                return
             else:
-                reply_text = "สวัสดีค่ะ! \nAI ของเราพร้อมช่วยคุณคำนวณแคลอรี่จากรูปภาพอาหาร แค่ส่งรูปมา ฉันจะบอกคุณทันทีว่าวันนี้กินไปกี่แคลฯ แล้วเก็บข้อมูลให้ด้วยนะคะ 🍱📊"  # ข้อความตอบกลับเริ่มต้น
+                reply_text = "โปรดส่งรูปอาหารก่อนค่ะ!"
 
-        # ส่งข้อความตอบกลับ
-        line_bot_api.reply_message(
-            reply_message_request=ReplyMessageRequest(
-                replyToken=event.reply_token,
-                messages=[TextMessage(text=reply_text, quick_reply=create_quick_reply())]
-            )
-        )
-    except Exception as e:
-        print("error",str(e))
-            
+        elif user_data["status"] == "edit" and user_data["image_receive"]:
+            incorrect_predict({
+                "user_Id": user_id,
+                "old_food_name": user_data["food_name"],
+                "new_food_name": message_text,
+                "food_type": user_data["food_type"],
+                "nutrition": user_data["nutrition"],
+                "image_path": user_data["image_path"]
+            })
+            send_reply(line_bot_api, event.reply_token, f"ปรับปรุงเมนูเป็น '{message_text}' เรียบร้อยค่ะ! 🙏")
+            user_corrections.pop(user_id, None)  # ล้างข้อมูลผู้ใช้
+            return
 
+        else:
+            reply_text = "ส่งรูปอาหารมาเลย! ฉันจะช่วยคุณคำนวณแคลอรี่ให้ค่ะ 🍱📊"
 
+        send_reply(line_bot_api, event.reply_token, reply_text, create_quick_reply())
 
 
 @handler.add(FollowEvent)
 def handle_follow(event: FollowEvent):
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
-        reply_item = create_quick_reply()
-        line_bot_api.reply_message(
-            reply_message_request=ReplyMessageRequest(
-                replyToken=event.reply_token,
-                messages=[TextMessage(text="สวัสดีค่า!", quick_reply = reply_item)]
-            )
-        )
-
-
-
-def clear_user_correction(user_id):
-    user_corrections[user_id] = {"status": None, "image_receive": False, "image_path" : None, "nutrition" : None}  # ล้างข้อมูลเมื่อทำการบันทึก
-   
-
-
-
-def save_image_quick_reply():
-    quick_reply = QuickReply(
-        items=[
-            QuickReplyItem(
-                action=MessageAction(label="บันทึก", text="บันทึก"),
-            )
-        ]
-    )
-    return quick_reply
-
-
-def create_quick_reply():
-    quick_reply = QuickReply(
-        items=[
-           
-            QuickReplyItem(
-                action=CameraAction(label="ถ่ายรูปอาหาร"),
-            ),
-            QuickReplyItem(
-                action=URIAction(label="ดูประวิติการกินอาหาร",uri="https://web-foodbuddy.vercel.app/")
-            ),
-            QuickReplyItem(
-                action=URIAction(label="ตั้งเป้าหมายสุขภาพ",uri="https://web-foodbuddy.vercel.app/")
-            ),
-        ]
-    )
-    return quick_reply
-
-
-def lodingAnimation(user_id):
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-        line_bot_api.show_loading_animation(
-            ShowLoadingAnimationRequest(
-                chat_id=user_id,
-                loadingSeconds=10
-            )
-        )
-    return
+        send_reply(line_bot_api, event.reply_token, "สวัสดีค่า!", create_quick_reply())

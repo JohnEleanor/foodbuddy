@@ -111,11 +111,7 @@ async def callback(request: Request, x_line_signature: str = Header(None)):
     body = await request.body()
     body_str = body.decode('utf-8')
     try:
-        # print(body_str)
-        # print(x_line_signature)
         handler.handle(body_str, x_line_signature)
-        # print(body_str)
-        print("Received frome LINE")
     except InvalidSignatureError:
         print("Invalid signature. Please check your channel access token/channel secret.")
         raise HTTPException(status_code=400, detail="Invalid signature.")
@@ -259,14 +255,6 @@ async def save_eat_history(request: Request):
     return {"message": "Save eat history successfully"}
 
 
-@app.get("/user/lineliff")
-async def lineLiff_webhook(code, state, liffClientId, liffRedirectUri):
-    """
-    สำหรับรับข้อมูลจาก LINE LIFF
-    """
-    # data = await request.json()
-    print(code, state, liffClientId, liffRedirectUri)
-    return {"message": "Received from LINE LIFF"}   
 
 
 

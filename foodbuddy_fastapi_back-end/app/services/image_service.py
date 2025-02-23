@@ -66,11 +66,11 @@ def predict_image(image_path: str):
                 try:
                     with connection.cursor() as cursor:
                         cursor.execute(f"""
-                                       SELECT *
-FROM food_nutration AS fn
-JOIN food_category AS cat ON fn.category_name = cat.id
-WHERE fn.eng_name LIKE '%{k}%';
-""")
+                                    SELECT *
+                                    FROM food_nutration AS fn
+                                        JOIN food_category AS cat ON fn.category_name = cat.id
+                                    WHERE fn.eng_name LIKE '%{k}%';
+                                    """)
                         result = cursor.fetchall()
                         for row in result:
                             result_to_client.append(

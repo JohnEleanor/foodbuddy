@@ -1,62 +1,21 @@
-from app.utils.db_utils import connect_db
+# ---------------------------------------------------------------------------- #
+#                                    ! LIB                                     #
+# ---------------------------------------------------------------------------- #
+from app.utils.db_utils import connect_db, close_db
 import requests
+import os
+import json
+from dotenv import load_dotenv
+load_dotenv()
+# ---------------------------------------------------------------------------- #
 
 
-# def save_eat_history(data):
-#     connection = connect_db()
-#     cursor = connection.cursor()
-#     try:
-#         # cursor.execute(
-#         #     "INSERT INTO user_eat_history (calories, protein, carbohydrates, fat, food_name, user_lineId, category) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-#         #     (data["calories"], data["protein"], data["carbs"], data["fat"], data["food_name"], data["user_id"], data["food_type"])
-#         # )
-#         # connection.commit()
-        
-#         # if cursor.rowcount > 0:  # ตรวจสอบว่ามี row ถูก insert ไหม
-#         #     return {"message": "Save eat history successfully", "status": "success"}
-#         # else:
-#         #     return {"message": "Failed to save eat history", "status": "error"}
-#         calories, protein, carbohydrates, fat, food_name, user_lineId, category = data
-        
-#         if (calories == None or protein == None or carbohydrates == None or fat == None or food_name == None or user_lineId == None or category == None):
-#             return {"error": "Failed to save eat history", "details": "Missing data"}
-        
-#         if not (isinstance(calories, (int, float)) and isinstance(protein, (int, float)) 
-#                 and isinstance(carbohydrates, (int, float)) and isinstance(fat, (int, float))):
-#             return {"error": "Failed to save eat history", "details": "Calories, protein, carbs, or fat must be numbers"}
-#         try:
-#             data = {
-#                 "calories": int(calories),
-#                 "protein": int(protein),
-#                 "carbohydrates": int(carbohydrates),
-#                 "fat": int(fat),
-#                 "food_name": str(food_name),
-#                 "user_lineId": str(user_lineId),
-#                 "category": str(category)
-#             }
-#             data = requests.post("https://web-foodbuddy.vercel.app/api", json=data)
-#             response = data.json()
-#             if (response.get("message") == "success"):
-#                 return {"message": "Save eat history successfully", "status": "success"}
-#             else:
-#                 return {"error": "Failed to save eat history", "details": "Failed to save data"}
-                
-#         except Exception as e:
-#             print("Error:", str(e))
-#             return {"error": "Failed to save eat history", "details": str(e)}
-
-
-    
-#     except Exception as e:
-#         print("Error:", str(e))
-#         return {"error": "Failed to save eat history", "details": str(e)}
-    
-#     finally:
-#         cursor.close()
-#         connection.close()
-
+# ---------------------------------------------------------------------------- #
+# ?                           บันทึกข้อมูลการทานอาหาร                             #
+# ---------------------------------------------------------------------------- #
 def save_eat_history(data):
     print(data)
+    print(os.getenv('API_USER_HISTORY'))
     try:
         # แปลงข้อมูลให้ตรงกับประเภทที่ต้องการ
         calories = int(data["calories"]) if isinstance(data["calories"], (int, float)) else None
@@ -83,7 +42,8 @@ def save_eat_history(data):
         }
 
         # ส่งข้อมูลไปยัง API
-        response = requests.post("http://localhost:3000/api", json=payload)
+        # response = requests.post("http://localhost:3000/api", json=payload)
+        response = requests.post(os.getenv('API_USER_HISTORY'), json=payload)
         
         # ตรวจสอบคำตอบจาก API
         
@@ -97,5 +57,54 @@ def save_eat_history(data):
     except Exception as e:
         print("Error:", str(e))
         return {"error": "Failed to save eat history", "details": str(e)}
+# ---------------------------------------------------------------------------- #
+
+
+
+
+
+# ---------------------------------------------------------------------------- #
+# !                       เก็บข้อมูลอาหารที่ทานผิดพลาด                              #
+# ---------------------------------------------------------------------------- #
+def incorrect_predict(data):
+    required_keys = ["user_Id", "old_food_name", "new_food_name", "food_type", "nutrition", "image_path"]
     
+    # ตรวจสอบว่าคีย์ทั้งหมดมีอยู่ใน data
+    missing_keys = [key for key in required_keys if key not in data or data[key] is None]
     
+    if missing_keys:
+        print(f"Error: Missing required fields: {missing_keys}")
+        return {"status": "error", "message": f"Missing required fields: {missing_keys}"}
+    
+    # ตรวจสอบว่า `nutrition` เป็น JSON ที่ถูกต้องหรือไม่
+    if not isinstance(data["nutrition"], dict):
+        print("Error: Nutrition data should be a valid dictionary.")
+        return {"status": "error", "message": "Invalid nutrition format"}
+    
+    # ตรวจสอบว่า `image_path` มีค่าเป็นสตริง
+    if not isinstance(data["image_path"], str) or not data["image_path"]:
+        print("Error: Image path is invalid.")
+        return {"status": "error", "message": "Invalid image path"}
+    
+    # บันทึกข้อมูล (โค้ดสำหรับบันทึกลงฐานข้อมูล)
+    print("Data is valid. Saving to database...")
+
+    try:
+        # บันทึกข้อมูลลงฐานข้อมูล
+        connection = connect_db()
+        with connection.cursor() as cursor:
+            cursor.execute(f"""
+                INSERT INTO incorrect_predictions (user_id, old_food_name, new_food_name, food_type, nutrition, image_path)
+                VALUES (%s, %s, %s, %s, %s, %s);
+            """, (data["user_Id"], data["old_food_name"], data["new_food_name"], data["food_type"], json.dumps(data["nutrition"]), data["image_path"]))
+            connection.commit()
+            close_db(connection)
+    except Exception as e:
+        print(f"Error: {e}")
+        return {"status": "error", "message": f"An unexpected error occurred: {e}"}
+    
+   
+
+    return {"status": "success", "message": "Data saved successfully"}
+
+# ---------------------------------------------------------------------------- #
