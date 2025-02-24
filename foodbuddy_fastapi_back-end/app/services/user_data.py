@@ -11,6 +11,20 @@ load_dotenv()
 
 
 # ---------------------------------------------------------------------------- #
+#  !                              DATABASE for user                            #
+#? TABLE user_report
+#? TABLE user_new_data
+#? TABLE users
+#? TABLE user_eat_history
+#? TABLE incorrect_predictions
+# ---------------------------------------------------------------------------- #
+# !                              DATABASE for food                             #
+#? TABLE food_nutration
+#? TABLE food_category
+#! --------------------------------------------------------------------------- #
+
+
+# ---------------------------------------------------------------------------- #
 # ?                           บันทึกข้อมูลการทานอาหาร                             #
 # ---------------------------------------------------------------------------- #
 def save_eat_history(data):
@@ -61,9 +75,6 @@ def save_eat_history(data):
 # ---------------------------------------------------------------------------- #
 
 
-
-
-
 # ---------------------------------------------------------------------------- #
 # !                       เก็บข้อมูลอาหารที่ทานผิดพลาด                              #
 # ---------------------------------------------------------------------------- #
@@ -97,7 +108,7 @@ def incorrect_predict(data):
             cursor.execute(f"""
                 INSERT INTO incorrect_predictions (user_id, old_food_name, new_food_name, food_type, nutrition, image_path)
                 VALUES (%s, %s, %s, %s, %s, %s);
-            """, (data["user_Id"], data["old_food_name"], data["new_food_name"], data["food_type"], json.dumps(data["nutrition"]), data["image_path"]))
+            """, (data["user_Id"], data["old_food_name"], data["new_food_name"], data["food_type"], json.dumps(data["nutrition"]), os.path.basename(data["image_path"])))
             connection.commit()
             close_db(connection)
     except Exception as e:
@@ -113,7 +124,7 @@ def incorrect_predict(data):
 
 
 # ---------------------------------------------------------------------------- #
-#!                            เก็บข้อมูลการเเจ้งปัญหา                           #
+#!                            เก็บข้อมูลการเเจ้งปัญหา                               #
 # ---------------------------------------------------------------------------- #
 def user_report(user_id , report_message):
     connection = connect_db()
@@ -131,3 +142,27 @@ def user_report(user_id , report_message):
         return {"status": "error", "message": f"An unexpected error occurred: {e}"}
     
 # ---------------------------------------------------------------------------- #
+
+
+# ---------------------------------------------------------------------------- #
+#!         เก็บข้อมูลเมื่อ ai ไม่สามารถทำนายได้โดยให้ผู้ใช้กรอกข้อมูลให้                    #
+# ---------------------------------------------------------------------------- #
+def user_giveNew_data(user_id , new_data):
+
+    connection = connect_db()
+    image_path = new_data["image_path"]
+    food_name = new_data["food_name"]
+    if (image_path == None or food_name == None): return {"status": "error", "message": "Missing data"}
+    
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(f"""
+                INSERT INTO user_new_data (user_id, image_path, food_name)
+                VALUES (%s, %s, %s);
+            """, (user_id, os.path.basename(image_path), food_name))
+            connection.commit()
+            close_db(connection)
+            return {"status": "success", "message": "Data saved successfully"}
+    except Exception as e:
+        print(f"Error: {e}")
+        return {"status": "error", "message": f"An unexpected error occurred: {e}"}

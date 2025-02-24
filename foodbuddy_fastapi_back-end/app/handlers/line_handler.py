@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 # Import ฟังก์ชันช่วยเหลือ
 from services.image_service import predict_image
-from services.user_data import incorrect_predict, save_eat_history, user_report
+from services.user_data import incorrect_predict, save_eat_history, user_giveNew_data, user_report
 from utils.create_flex import create_flex_bubble, goto_history, goto_settingTarget
 from utils.file_utils import save_image, remove_image
 
@@ -71,14 +71,15 @@ def handle_image(event: MessageEvent):
         line_bot_blob_api = MessagingApiBlob(api_client)
         user_id = event.source.user_id
         user_data = initialize_user_data(user_id)
-
+        start_loading_animation(user_id)
         file_name = save_image(event.message.id, line_bot_blob_api)
         if file_name:
             predict_result = predict_image(file_name)
             image_url = f"{os.getenv('API_URL')}/images/{event.message.id}.jpg"
 
             if predict_result[0]["name"] == "ไม่สามารถระบุได้":
-                send_reply(line_bot_api, event.reply_token, "ขอโทษค่ะ ฉันไม่สามารถเข้าใจรูปภาพนี้ได้")
+                send_reply(line_bot_api, event.reply_token, "ขอโทษด้วย ฉันไม่สามารถเข้าใจรูปภาพอาหารได้ค่ะ ช่วยเเนะนำเมนูนี้หนูฉันหน่อยได้มั้ยคะ เช่น ไอติม | เช่น ข้าวต้ม โดยป้อนเเค่ชื่อเมนู")
+                user_data.update({"status": "unknown", "image_receive": True, "image_path": file_name})
             else:
                 nutrition_json = predict_result[0].get('nutration')
                 if nutrition_json:
@@ -106,10 +107,12 @@ def handle_message(event: MessageEvent):
 
         start_loading_animation(user_id)
 
+        print(user_data)
+
         if message_text in ["เเก้ไขเมนู", "แก้ไขเมนู"]:
             reply_text = "โปรดป้อนชื่อเมนูที่ถูกต้องค่ะ!" if user_data["image_receive"] else "โปรดส่งรูปอาหารก่อนค่ะ!"
             user_data["status"] = "edit" if user_data["image_receive"] else None
-        elif message_text == "วิธีใช้งาน":
+        elif message_text in ["วิธีใช้งาน", "วิธีใช้"]:
             reply_text = """🔹 การใช้งาน LINE Chat Bot
 ✅ 1. วิธีใช้งานเบื้องต้น
     🔹 ส่งรูปภาพอาหาร → ระบบจะวิเคราะห์และคำนวณแคลอรี่
@@ -176,6 +179,18 @@ def handle_message(event: MessageEvent):
                 return
             else:
                 reply_text = "โปรดส่งรูปอาหารก่อนค่ะ!"
+        elif user_data["status"] == "unknown":
+            # print("this is input :", message_text)
+            reply_text = "ขอบคุณสำหรับข้อเสนอแนะค่ะ! ทางเราจะนำไปพัฒนาต่อไปค่ะ!"
+
+            # ---------------------------------------------------------------------------- #
+            #                                   API CHECK                                  #
+            # ---------------------------------------------------------------------------- #
+            data = {
+                "food_name": message_text,
+                "image_path": user_data["image_path"]
+            }
+            user_giveNew_data(user_id, data)
 
         elif user_data["report"] == True:  
             user_data["report_message"] = message_text
